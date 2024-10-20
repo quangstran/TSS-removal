@@ -3,6 +3,7 @@ from tkinter import messagebox, ttk, filedialog, Toplevel, Text
 from datetime import datetime
 import os
 import json
+import markdown
 
 class TSSCalculatorApp:
 
@@ -84,12 +85,14 @@ class TSSCalculatorApp:
         self.add_button.grid(row=6, column=4, padx=10, pady=10)
 
         # Treeview Table for displaying the LID methods
-        columns = ('LID Method', 'TSS Efficiency (%)', 'Remaining TSS (%)')
+        columns = ('Index', 'LID Method', 'TSS Efficiency (%)', 'Remaining TSS (%)')
         self.tree = ttk.Treeview(root, columns=columns, show='headings')
+        self.tree.heading('Index', text='Index')
         self.tree.heading('LID Method', text='LID Method')
         self.tree.heading('TSS Efficiency (%)', text='TSS Efficiency (%)')
         self.tree.heading('Remaining TSS (%)', text='Remaining TSS (%)')
         self.tree.grid(row=7, column=0, columnspan=5, padx=10, pady=10)
+
 
         # Calculate Button
         self.calculate_button = tk.Button(root, text="Calculate TSS Removal", command=self.calculate_tss_removal)
@@ -108,8 +111,18 @@ class TSSCalculatorApp:
         help_window.title("Help - TSS Removal Calculator")
         help_text = Text(help_window, wrap="word", width=100, height=30)
         help_text.pack(expand=True, fill="both")
-        help_content = print('Please have the help instruction here')
-        help_text.insert(tk.END, help_content)
+
+        # Read and render the Markdown file
+        try:
+            with open("help.md", "r") as file:
+                md_content = file.read()
+                html_content = markdown.markdown(md_content)
+                help_text.insert(tk.END, html_content)
+        except FileNotFoundError:
+            help_text.insert(tk.END, "Help file not found.")
+        except Exception as e:
+            help_text.insert(tk.END, f"An error occurred: {e}")
+
         help_text.config(state=tk.DISABLED)
 
     def new_project(self):
@@ -227,31 +240,26 @@ class TSSCalculatorApp:
         """Add an LID method to the list."""
         lid_name = self.lid_method_combobox.get()
         tss_efficiency = self.tss_efficiency_entry.get()
-        
+    
         if lid_name and tss_efficiency:
             try:
                 tss_efficiency = float(tss_efficiency)
                 if 0 <= tss_efficiency <= 100:
                     remaining_tss = 100.0 * (1 - tss_efficiency / 100)
                     self.lid_methods_list.append((lid_name, tss_efficiency, f"{remaining_tss:.2f}"))
-                    self.tree.insert('', tk.END, values=(lid_name, f"{tss_efficiency:.2f}", f"{remaining_tss:.2f}"))
-
+                    index = len(self.lid_methods_list)
+                    self.tree.insert('', tk.END, values=(index, lid_name, f"{tss_efficiency:.2f}", f"{remaining_tss:.2f}"))
                 else:
-
                     messagebox.showerror("Error", "TSS Efficiency must be between 0 and 100.")
-
             except ValueError:
-
                 messagebox.showerror("Error", "Please enter a valid number for TSS Efficiency.")
-
         else:
-
             messagebox.showerror("Error", "Please select an LID Method and ensure TSS Efficiency is valid.")
+
 
     def calculate_tss_removal(self):
         """Calculate the total TSS removal after all LID methods and display the breakdown."""
         try:
-
             # Clear the treeview for a new calculation
             for row in self.tree.get_children():
                 self.tree.delete(row)
@@ -269,10 +277,9 @@ class TSSCalculatorApp:
             initial_tss = 100.0
 
             # Loop through each LID system and apply TSS removal
-            for lid_name, tss_removal_efficiency in self.lid_methods_list:
-
+            for index, (lid_name, tss_removal_efficiency, _) in enumerate(self.lid_methods_list, start=1):
                 remaining_tss = initial_tss * (1 - tss_removal_efficiency / 100)
-                self.tree.insert('', tk.END, values=(lid_name, f'{tss_removal_efficiency:.2f}', f'{remaining_tss:.2f}'))
+                self.tree.insert('', tk.END, values=(index, lid_name, f'{tss_removal_efficiency:.2f}', f'{remaining_tss:.2f}'))
                 initial_tss = remaining_tss
 
             # Final TSS removal percentage
@@ -280,13 +287,15 @@ class TSSCalculatorApp:
 
             # Display the result in the summary label
             self.summary_label.config(text=f"Total Runoff: {total_runoff:.2f} m2\n"
+                                           f"Final TSS Removal: {final_tss_removal:.2f}%\n"
+                                           f"Remaining TSS after Treatment: {remaining_tss:.2f}%")
+            print(f"Total Runoff: {total_runoff:.2f} m2")
+            print(f"Final TSS Removal: {final_tss_removal:.2f}%")
+            print(f"Remaining TSS after Treatment: {remaining_tss:.2f}%")
+        except ValueError as e:
+            messagebox.showerror("Error", f"Please enter valid numeric inputs. Error: {e}")
 
-                f"Final TSS Removal: {final_tss_removal:.2f}%\n"
-                f"Remaining TSS after Treatment: {remaining_tss:.2f}%")
 
-        except ValueError:
-
-            messagebox.showerror("Error", "Please enter valid numeric inputs.")
 
 # Create the Tkinter window
 root = tk.Tk()
